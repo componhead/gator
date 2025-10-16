@@ -13,24 +13,24 @@ type Config struct {
 	DbUrl           string `json:"db_url"`
 }
 
-func Read() Config {
+func Read() (Config, error) {
 	cfg := Config{}
 	p, err := getConfigFilePath()
 	if err != nil {
-		return Config{}
+		return Config{}, err
 	}
 
 	f, err := os.ReadFile(p)
 	if err != nil {
-		return Config{}
+		return Config{}, err
 	}
 
 	err = json.Unmarshal(f, &cfg)
 	if err != nil {
-		return Config{}
+		return Config{}, err
 	}
 
-	return cfg
+	return cfg, nil
 }
 
 func write(cfg Config) error {
