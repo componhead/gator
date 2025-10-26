@@ -84,3 +84,11 @@ func handlerRegister(s *state, cmd command) error {
 	fmt.Printf("User created: %+v\n", createdUser)
 	return nil
 }
+
+func handlerReset(s *state, cmd command) error {
+	err := s.db.DeleteUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("couldn't truncate user table: %w", err)
+	}
+	return nil
+}
