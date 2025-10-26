@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/componhead/gator/internal/config"
@@ -89,6 +90,26 @@ func handlerReset(s *state, cmd command) error {
 	err := s.db.DeleteUsers(context.Background())
 	if err != nil {
 		return fmt.Errorf("couldn't truncate user table: %w", err)
+	}
+	return nil
+}
+
+func handlerUsers(s *state, cmd command) error {
+	usrs, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("couldn't get users: %w", err)
+	}
+	var userRows []string
+	for _, u := range usrs {
+		var userRow []string
+		userRow = append(userRow, fmt.Sprintf("* %s", u.Name))
+		if u.Name == s.cfg.CurrentUserName {
+			userRow = append(userRow, " (current)")
+		}
+		userRows = append(userRows, strings.Join(userRow, ""))
+	}
+	for _, userRow := range userRows {
+		fmt.Println(userRow)
 	}
 	return nil
 }
