@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/componhead/gator/internal/config"
+	"github.com/componhead/gator/internal/database"
+	"github.com/google/uuid"
 )
 
 type state struct {
+	db  *database.Queries
 	cfg *config.Config
 }
 
@@ -26,7 +31,12 @@ func handlerLogin(s *state, cmd command) error {
 		return fmt.Errorf("usage: %s <name>", cmd.Name)
 	}
 	username = cmd.Args[0]
-	err := s.cfg.SetUser(username)
+	ctx := context.Background()
+	u, err := s.db.GetUserByName(ctx, username)
+	if (err != nil || u == database.User{}) {
+		return fmt.Errorf("user %s doesn't exist", username)
+	}
+	err = s.cfg.SetUser(username)
 	if err != nil {
 		return fmt.Errorf("couldn't set current user: %w", err)
 	}
@@ -44,4 +54,33 @@ func (c *commands) run(s *state, cmd command) error {
 
 func (c *commands) register(name string, f func(*state, command) error) {
 	c.registeredCommands[name] = f
+}
+
+func handlerRegister(s *state, cmd command) error {
+	var name string
+	if len(cmd.Args) < 1 {
+		return fmt.Errorf("usage: %s <name>", cmd.Name)
+	}
+	name = cmd.Args[0]
+	ctx := context.Background()
+	u, err := s.db.GetUserByName(ctx, name)
+	if u.ID.Valid {
+		return fmt.Errorf("user %s already exists", name)
+	}
+	if err != nil && err.Error() != "sql: no rows in result set" {
+		return fmt.Errorf("couldn't get user %s: %w", name, err)
+	}
+	userParams := database.CreateUserParams{
+		ID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		Name:      name,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	createdUser, err := s.db.CreateUser(ctx, userParams)
+	if err != nil {
+		return fmt.Errorf("couldn't set current user: %w", err)
+	}
+	s.cfg.SetUser(createdUser.Name)
+	fmt.Printf("User created: %+v\n", createdUser)
+	return nil
 }
