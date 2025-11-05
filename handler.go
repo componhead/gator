@@ -2,29 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/xml"
 	"errors"
 	"fmt"
+	"html"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
-	"github.com/componhead/gator/internal/config"
 	"github.com/componhead/gator/internal/database"
 	"github.com/google/uuid"
 )
-
-type state struct {
-	db  *database.Queries
-	cfg *config.Config
-}
-
-type command struct {
-	Name string
-	Args []string
-}
-
-type commands struct {
-	registeredCommands map[string]func(*state, command) error
-}
 
 func handlerLogin(s *state, cmd command) error {
 	var username string
@@ -112,4 +101,47 @@ func handlerUsers(s *state, cmd command) error {
 		fmt.Println(userRow)
 	}
 	return nil
+}
+
+func handlerAgg(s *state, cmd command) error {
+	rssFeed, err := fetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%+v\n", rssFeed)
+	return nil
+}
+
+func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "gator")
+	client := &http.Client{
+		Timeout: time.Second * 10,
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status: %d", res.StatusCode)
+	}
+	defer res.Body.Close()
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+	var rss RSSFeed
+	if err := xml.Unmarshal(b, &rss); err != nil {
+		return nil, err
+	}
+	rss.Channel.Description = html.UnescapeString(rss.Channel.Description)
+	rss.Channel.Title = html.UnescapeString(rss.Channel.Title)
+	for idx, item := range rss.Channel.Item {
+		rss.Channel.Item[idx].Description = html.UnescapeString(item.Description)
+		rss.Channel.Item[idx].Title = html.UnescapeString(item.Title)
+	}
+	return &rss, nil
 }
