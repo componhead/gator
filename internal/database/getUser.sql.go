@@ -15,7 +15,7 @@ const getUser = `-- name: GetUser :one
 SELECT id, created_at, updated_at, name FROM users WHERE id = $1
 `
 
-func (q *Queries) GetUser(ctx context.Context, id uuid.NullUUID) (User, error) {
+func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUser, id)
 	var i User
 	err := row.Scan(

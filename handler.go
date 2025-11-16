@@ -54,14 +54,14 @@ func handlerRegister(s *state, cmd command) error {
 	name = cmd.Args[0]
 	ctx := context.Background()
 	u, err := s.db.GetUserByName(ctx, name)
-	if u.ID.Valid {
+	if u.ID != uuid.Nil {
 		return fmt.Errorf("user %s already exists", name)
 	}
 	if err != nil && err.Error() != "sql: no rows in result set" {
 		return fmt.Errorf("couldn't get user %s: %w", name, err)
 	}
 	userParams := database.CreateUserParams{
-		ID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ID:        uuid.New(),
 		Name:      name,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -109,6 +109,31 @@ func handlerAgg(s *state, cmd command) error {
 		return err
 	}
 	fmt.Printf("%+v\n", rssFeed)
+	return nil
+}
+
+func handlerAddFeed(s *state, cmd command) error {
+	if len(cmd.Args) != 2 {
+		return fmt.Errorf("usage: %s <feed_name> <feed_url>", cmd.Name)
+	}
+	ctx := context.Background()
+	u, err := s.db.GetUserByName(ctx, s.cfg.CurrentUserName)
+	if err != nil {
+		return err
+	}
+	args := database.AddFeedParams{
+		ID:        uuid.New(),
+		Name:      cmd.Args[0],
+		Url:       cmd.Args[1],
+		UserID:    u.ID,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	f, err := s.db.AddFeed(ctx, args)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("feed: %+v\n", f)
 	return nil
 }
 
