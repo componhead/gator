@@ -112,6 +112,23 @@ func handlerAgg(s *state, cmd command) error {
 	return nil
 }
 
+func handlerFeeds(s *state, cmd command) error {
+	feeds, err := s.db.GetFeeds(context.Background())
+	if err != nil {
+		return err
+	}
+	for _, f := range feeds {
+		u, err := s.db.GetUser(context.Background(), f.UserID)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("feed name: %v\n", f.Name)
+		fmt.Printf("feed url: %v\n", f.Url)
+		fmt.Printf("feed user name: %v\n", u.Name)
+	}
+	return nil
+}
+
 func handlerAddFeed(s *state, cmd command) error {
 	if len(cmd.Args) != 2 {
 		return fmt.Errorf("usage: %s <feed_name> <feed_url>", cmd.Name)
