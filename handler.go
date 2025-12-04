@@ -129,7 +129,7 @@ func handlerFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.Args) != 2 {
 		return fmt.Errorf("usage: %s <feed_name> <feed_url>", cmd.Name)
 	}
@@ -199,16 +199,12 @@ func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 	return &rss, nil
 }
 
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.Args) != 1 {
 		return fmt.Errorf("usage: %s <feed_url>", cmd.Name)
 	}
 	url := cmd.Args[0]
 	ctx := context.Background()
-	u, err := s.db.GetUserByName(ctx, s.cfg.CurrentUserName)
-	if err != nil {
-		return err
-	}
 	f, err := s.db.GetFeedByURL(ctx, url)
 	if err != nil {
 		return err
@@ -218,7 +214,7 @@ func handlerFollow(s *state, cmd command) error {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		FeedID:    f.ID,
-		UserID:    u.ID,
+		UserID:    user.ID,
 	}
 	ff, err := s.db.CreateFeedFollow(ctx, createFeedFollowParams)
 	if err != nil {
@@ -228,13 +224,9 @@ func handlerFollow(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollowing(s *state, cmd command) error {
+func handlerFollowing(s *state, cmd command, user database.User) error {
 	ctx := context.Background()
-	u, err := s.db.GetUserByName(ctx, s.cfg.CurrentUserName)
-	if err != nil {
-		return err
-	}
-	f, err := s.db.GetFeedsFollowForUser(ctx, u.ID)
+	f, err := s.db.GetFeedsFollowForUser(ctx, user.ID)
 	if err != nil {
 		return err
 	}
