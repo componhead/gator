@@ -8,6 +8,7 @@ import (
 	"html"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -136,7 +137,43 @@ func scrapeFeeds(s *state, ctx context.Context, usr database.User) {
 		return
 	}
 	for _, item := range rssFeed.Channel.Item {
-		fmt.Printf("%+v\n", item.Title)
+		var pubDate time.Time
+		rfc1123, err := time.Parse(time.RFC1123, item.PubDate)
+		if err != nil {
+			rfc3339, err := time.Parse(time.RFC3339, item.PubDate)
+			if err != nil {
+				rfc822, err := time.Parse(time.RFC822, item.PubDate)
+				if err != nil {
+					fmt.Printf("Error on parsing published_at date for feed %s: %v\n", item.Title, err)
+				} else {
+					pubDate = rfc822
+				}
+			} else {
+				pubDate = rfc3339
+			}
+		} else {
+			pubDate = rfc1123
+		}
+		feed, err := s.db.GetFeedByURL(ctx, rssFeed.Channel.Link)
+		if err != nil {
+			fmt.Printf("Error on retrieving feed by url: %v\n", err)
+			return
+		}
+		postParams := database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Title:       item.Title,
+			Url:         item.Link,
+			Description: item.Description,
+			PublishedAt: pubDate,
+			FeedID:      feed.ID,
+		}
+		_, err = s.db.CreatePost(ctx, postParams)
+		if err != nil && !strings.Contains(err.Error(), "unique constraint on url") {
+			fmt.Printf("Error on post creation: %v\n", err)
+			return
+		}
 	}
 }
 
@@ -254,7 +291,7 @@ func handlerFollow(s *state, cmd command, user database.User) error {
 
 func handlerUnfollow(s *state, cmd command, user database.User) error {
 	if len(cmd.Args) != 1 {
-		return fmt.Errorf("usage: %s <feed_url>", cmd.Name)
+		return fmt.Errorf("usage: %s <feed_url>\n", cmd.Name)
 	}
 	url := cmd.Args[0]
 	ctx := context.Background()
@@ -270,7 +307,7 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Feed name: %s\nCurrent user: %s\n deleted", f.Name, user.Name)
+	fmt.Printf("Feed name: %s\nCurrent user: %s\n deleted\n", f.Name, user.Name)
 	return nil
 }
 
@@ -282,6 +319,31 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	}
 	for _, f := range f {
 		fmt.Printf("Feed: %s\n", f.Feedname)
+	}
+	return nil
+}
+
+func handlerBrowse(s *state, cmd command, user database.User) error {
+	var limit int = 2
+	if len(cmd.Args) == 1 {
+		n, err := strconv.Atoi(cmd.Args[0])
+		if err != nil {
+			return fmt.Errorf("limit arg should be an int %s\n", cmd.Name)
+		} else {
+			limit = n
+		}
+	}
+	ctx := context.Background()
+	getPostsForUserParams := database.GetPostsForUserParams{
+		UserID: user.ID,
+		Limit:  int32(limit),
+	}
+	posts, err := s.db.GetPostsForUser(ctx, getPostsForUserParams)
+	if err != nil {
+		return err
+	}
+	for _, post := range posts {
+		fmt.Printf("Post: %s\n", post.Title)
 	}
 	return nil
 }
